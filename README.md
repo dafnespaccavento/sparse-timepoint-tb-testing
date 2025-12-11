@@ -19,7 +19,7 @@ This project implements an alternative approach to tuberculosis drug susceptibil
 
 ---
 
-## 🗂️ Repository Structure
+## Repository Structure
 
 ```
 ├── 1_data_analysis.ipynb          # Exploratory data analysis
