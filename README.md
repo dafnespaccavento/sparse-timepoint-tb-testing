@@ -9,23 +9,23 @@
 
 ## Overview
 
-This project implements an alternative approach to tuberculosis drug susceptibility testing that **replaces continuous single-cell tracking with sparse timepoint measurements**. By analyzing bacterial population area at just 5 timepoints (0h, 3h, 6h, 9h, 12h) instead of tracking 121 frames, we achieve:
+This project implements an alternative approach to tuberculosis drug susceptibility testing that **replaces continuous single-cell tracking with sparse timepoint measurements**. By analyzing bacterial population area at just 5 timepoints (0h, 1h, 2h, 3h, 4h) instead of tracking 121 frames, we achieve:
 
-- **95.9% reduction** in data processing
-- **95%+ classification accuracy** (resistant vs. susceptible)
-- **No tracking overhead** - no need to maintain cell identities
-- **Early detection** possible at 9 hours
-- **Simpler pipeline** suitable for clinical deployment
+- **100% accuracy** on 27 test samples (20 resistant, 7 susceptible)
+- **96% reduction** in computational cost (5 frames vs. 121 frames)
+- **3-hour detection** from drug exposure (vs. weeks for culture-based methods)
+- **Simple U-Net** (90.6% IoU) sufficient without instance tracking
+
 
 ---
 
 ## Repository Structure
 
 ```
-├── 1_data_analysis.ipynb          # Exploratory data analysis
-├── 2_classification.ipynb         # Classification (threshold + ML)
+├── Data_analysis.ipynb          # Exploratory data analysis
+├── Classification.ipynb         # Classification 
+├── UNet_Bacteria_Seg.ipynb      #U-Net
 ├── README.md                       # This file
-├── requirements.txt                # Python dependencies
 ├── outputs
 ```
 
@@ -80,9 +80,6 @@ data/                                    # Data directory
 git clone https://github.com/dafnespaccavento/sparse-timepoint-tb-testing.git
 cd sparse-timepoint-tb-testing
 
-# Install dependencies
-pip install -r requirements.txt
-
 # Launch Jupyter
 jupyter notebook
 ```
@@ -94,11 +91,21 @@ jupyter notebook
    - Visualizes growth trajectories
    - Analyzes environmental variability
    - Compares sparse vs. continuous tracking
+   - Identifies optimal discrimination windows
+
+2. **Train U-Net Segmentation Model** (`UNet_Bacteria_Seg.ipynb`):
+   - Implements simple U-Net architecture (3 encoder/decoder levels, ~1.9M parameters)
+   - Uses combined BCE + Dice loss with Adam optimizer
+   - Saves best model at lowest validation loss
 
 2. **Classification** (`Classification.ipynb`):
-   - Threshold-based classification
-   - Machine learning (logistic regression)
-   - Early detection analysis (3h, 6h, 9h, 12h)
+   - Part 1: Ground Truth Analysis (All 47 chambers):
+      - Tests percentage growth classification on Omnipose masks
+      - Evaluates multiple time intervals (0h→4h, 1h→3h, 2h→3h)
+   - Part 2: U-Net Pipeline Validation (27 test chambers):
+      - Loads trained U-Net and segments held-out test data
+      - Extracts bacterial area from U-Net predictions (not ground truth)
+      - Re-runs same classification approach
 
 ---
 
@@ -107,8 +114,8 @@ jupyter notebook
 ### Experimental Setup
 
 - **Imaging:** Time-lapse phase-contrast microscopy (microfluidic chambers)
-- **Duration:** 12 hours
-- **Frame interval:** 6 minutes (0.1 hours)
+- **Duration:** 4 hours
+- **Frame interval:** 2 minutes 
 - **Total frames:** 121 per position
 - **Pixel size:** 0.065 μm/pixel
 
@@ -129,35 +136,40 @@ Positions are paired by microfluidic chamber (same environmental conditions):
 
 **Note:** Initial bacterial loads vary due to random seeding, but environmental conditions (temperature, nutrients) are shared within pairs.
 
+## Results 
+### Optimal Discrimination Window: 2h → 3h
 
-## Results
+| Group | Mean Growth | Range | Phenotype |
+|-------|-------------|-------|-----------|
+| **REF (Resistant)** | +29.8% ± 2.9% | +23.9% to +35.1% | Continued exponential growth |
+| **RIF10 (Susceptible)** | -2.6% ± 5.2% | -10.4% to +4.9% | Growth arrest/death |
 
-### Classification Performance
+**Classification Performance:**
+- Accuracy: **100%** (27/27 samples)
+- Threshold: 20% (highly robust)
+- Detection time: **3 hours** from drug exposure
 
-| Method | Accuracy | Features | Time |
-|--------|----------|----------|------|
-| **Threshold** | ~100% | Fold change + growth | 12h |
-| **ML (Sparse)** | 95.0% ± 10.0% | 5 timepoints | 12h |
+### All Time Intervals
+
+| Interval | Threshold | Accuracy | Detection Time |
+|----------|-----------|----------|----------------|
+| 0h → 4h | 100% | 100% (27/27) | 4 hours |
+| 1h → 3h | 50% | 100% (27/27) | 3 hours |
+| **2h → 3h** | **20%** | **100% (27/27)** | **3 hours** ⭐ |
+
+### U-Net Segmentation Performance
+
+- **Training IoU:** 92.1%
+- **Validation IoU:** 90.6%
+- **Training samples:** 2,420 images from 20 chambers
 
 ## Visualizations
 
 ### 1. Growth Trajectories
 ![Trajectories](outputs/growth_trajectories_full.png)
 
-### 2. Early Detection Performance
-![Early Detection](outputs/early_detection.png)
+### 2. Sparse Timepoint Approach
+![Sparse Timepoint](outputs/sparse_timepoint_approach.png)
 
----
-
-### Hyperparameters
-
-```python
-# Classification
-THRESHOLD_FOLD = 2.0              # Minimum fold change for resistance
-CV_FOLDS = 5                      # Cross-validation folds
-RANDOM_STATE = 42                 # For reproducibility
-
-# Timepoints
-SPARSE_HOURS = [0, 3, 6, 9, 12]   # Sampling timepoints
-FRAME_INTERVAL = 0.1              # Hours per frame
-```
+### 3. U-Net Segmentation Result
+![U-Net Segmentation](outputs/segmentation_unet.png)
